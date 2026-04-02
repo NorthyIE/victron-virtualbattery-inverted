@@ -45,7 +45,7 @@ If your service name is not `com.victronenergy.battery.socketcan_vecan0`, edit t
 ### 2. Download the Python Service
 ```sh
 mkdir -p /data/dbus-virtual-battery
-wget -O /data/dbus-virtual-battery/dbus-virtual-battery.py https://raw.githubusercontent.com/NorthyIE/victron-deye-invert/main/dbus-virtual-battery.py
+wget -O /data/dbus-virtual-battery/dbus-virtual-battery.py https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/dbus-virtual-battery.py
 chmod +x /data/dbus-virtual-battery/dbus-virtual-battery.py
 ```
 
@@ -58,7 +58,7 @@ nano /data/dbus-virtual-battery/dbus-virtual-battery.py
 ### 3. Download the `run` File
 ```sh
 mkdir -p /data/conf/service/dbus-virtual-battery
-wget -O /data/conf/service/dbus-virtual-battery/run https://raw.githubusercontent.com/NorthyIE/victron-deye-invert/main/run
+wget -O /data/conf/service/dbus-virtual-battery/run https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/run
 chmod +x /data/conf/service/dbus-virtual-battery/run
 ln -s /data/conf/service/dbus-virtual-battery /service/dbus-virtual-battery
 ```
