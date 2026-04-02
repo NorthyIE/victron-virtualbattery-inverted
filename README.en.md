@@ -1,0 +1,109 @@
+# Victron DBus Virtual Inverted Battery
+
+I put this together for Victron Venus OS because a Deye BMS in my setup was reporting battery current with the wrong sign. The result was confusing battery state information in the GX interface and VRM.
+
+This project creates a small virtual battery service that mirrors the real battery on DBus, but fixes the current direction. It was built around Deye, but it may also help with other batteries or BMS integrations that show the same issue.
+
+## Why I Made This
+Some Deye battery integrations appear to report current direction incorrectly on Victron systems. That can lead to situations where the system says the battery is discharging while it is actually charging, or the other way around.
+
+I was not the only one running into this. These Victron Community threads describe the same or very similar behavior:
+
+- [Issue integrating Deye RW-F16 battery with Victron MultiPlus-II GX](https://community.victronenergy.com/t/issue-integrating-deye-rw-f16-battery-with-victron-multiplus-ii-gx/38218)
+- [Battery name correct on older Cerbo units, incorrect on new Cerbo units](https://community.victronenergy.com/t/battery-name-correct-on-older-cerbo-units-incorrect-on-new-cerbo-units/31622/15)
+
+## What the Script Does
+The script creates a separate virtual battery service on DBus:
+
+- voltage is mirrored
+- SoC is mirrored
+- current is inverted
+- power is recalculated from voltage and current
+- temperature is passed through when the source battery provides it
+
+After that, you can simply select the virtual battery as the battery monitor in the GX settings.
+
+## Check Your Battery Service Name First
+Before installing anything, connect to your Cerbo GX over SSH and run:
+
+```sh
+dbus-spy
+```
+
+Look for the battery service that starts with `com.victronenergy.battery`.
+
+If your service name is not `com.victronenergy.battery.socketcan_vecan0`, edit the Python file after downloading it and change `SOURCE_SERVICE`.
+
+## Installation on Cerbo GX
+
+### 1. Enable SSH
+- On the Cerbo GX, go to `Settings -> General -> Access Level`
+- Set it to `User and Installer` using password `zzz`
+- Under `Firmware -> Online Updates`, set a superuser password
+- Enable `SSH on LAN`
+
+### 2. Download the Python Service
+```sh
+mkdir -p /data/dbus-virtual-battery
+wget -O /data/dbus-virtual-battery/dbus-virtual-battery.py https://raw.githubusercontent.com/NorthyIE/victron-deye-invert/main/dbus-virtual-battery.py
+chmod +x /data/dbus-virtual-battery/dbus-virtual-battery.py
+```
+
+If needed, edit the source service name:
+
+```sh
+nano /data/dbus-virtual-battery/dbus-virtual-battery.py
+```
+
+### 3. Download the `run` File
+```sh
+mkdir -p /data/conf/service/dbus-virtual-battery
+wget -O /data/conf/service/dbus-virtual-battery/run https://raw.githubusercontent.com/NorthyIE/victron-deye-invert/main/run
+chmod +x /data/conf/service/dbus-virtual-battery/run
+ln -s /data/conf/service/dbus-virtual-battery /service/dbus-virtual-battery
+```
+
+## Restart and Troubleshooting
+Restart the service:
+
+```sh
+svc -t /service/dbus-virtual-battery
+```
+
+Bring it up manually:
+
+```sh
+svc -u /service/dbus-virtual-battery
+```
+
+Check status:
+
+```sh
+svstat /service/dbus-virtual-battery
+```
+
+Watch the log:
+
+```sh
+tail -f /data/log/dbus-virtual-battery.log
+```
+
+If the values still look wrong:
+
+1. Double-check the real battery service name in `dbus-spy`
+2. Make sure the source battery actually exposes `/Dc/0/Temperature` if you expect temperature to appear
+3. Confirm the virtual service shows up as `com.victronenergy.battery.inverted_vecan0`
+4. Restart the service after every change to the script
+
+## Final Setup in GX
+1. Open the GX Remote Console
+2. Go to `Settings -> System Setup`
+3. Select `Inverted Battery` as the battery monitor
+4. Check in `dbus-spy` that the values and signs now make sense
+
+## If You Want to Support It
+If this project was useful and you feel like buying me a coffee, you can do that here:
+
+- [paypal.me/northy](https://paypal.me/northy) - That is completely optional though :)
+
+This is not an official Victron Energy product. Use it at your own risk.

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python3 /data/dbus-virtual-battery/dbus-virtual-battery.py
