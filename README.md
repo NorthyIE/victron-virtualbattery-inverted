@@ -1,5 +1,7 @@
 # Victron Virtual Battery Inverted
 
+[English version](README.en.md)
+
 Ich habe das hier für Victron Venus OS gebaut, weil ein BMS in meinem Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. In meinem Fall war es ein Deye-BMS. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
 
 Das Projekt erstellt einen kleinen virtuellen Batterie-Dienst auf dem DBus, der die echte Batterie spiegelt, aber die Stromrichtung korrigiert. Entstanden ist es aus einem konkreten Deye-Problem, kann aber möglicherweise auch bei anderen Batterien oder BMS helfen, wenn dort derselbe Fehler auftaucht.
