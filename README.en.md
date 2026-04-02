@@ -1,6 +1,6 @@
 # Victron Virtual Battery Inverted
 
-[Deutsche Version](README.md)
+[English primary README](README.md) | [Deutsche Version](README.de.md)
 
 I built this for Victron Venus OS because a BMS in my setup was reporting battery current with the wrong sign. In my case it was a Deye BMS. That made the battery state shown in GX and VRM pretty misleading.
 

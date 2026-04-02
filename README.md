@@ -1,65 +1,65 @@
 # Victron Virtual Battery Inverted
 
-[English version](README.en.md)
+[Deutsche Version](README.de.md)
 
-Ich habe das hier für Victron Venus OS gebaut, weil ein BMS in meinem Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. In meinem Fall war es ein Deye-BMS. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
+I built this for Victron Venus OS because a BMS in my setup was reporting battery current with the wrong sign. In my case it was a Deye BMS. That made the battery state shown in GX and VRM pretty misleading.
 
-Das Projekt erstellt einen kleinen virtuellen Batterie-Dienst auf dem DBus, der die echte Batterie spiegelt, aber die Stromrichtung korrigiert. Entstanden ist es aus einem konkreten Deye-Problem, kann aber möglicherweise auch bei anderen Batterien oder BMS helfen, wenn dort derselbe Fehler auftaucht.
+This project creates a small virtual battery service on DBus that mirrors the real battery, but corrects the current direction. It started as a fix for a specific Deye issue, but it may also help with other batteries or BMS integrations that show the same problem.
 
-![GX-Screenshot mit Originalbatterie und korrigierter virtueller Batterie](screenshots/settings-system-batteries.png)
+![GX screenshot showing the original battery and the corrected inverted virtual battery](screenshots/settings-system-batteries.png)
 
-## Warum
-Einige BMS-Integrationen scheinen auf Victron-Systemen die Stromrichtung falsch zu melden. Dann steht im System zum Beispiel `Entladen`, obwohl die Batterie gerade geladen wird, oder genau andersherum.
+## Why I made this
+Some BMS integrations appear to report current direction incorrectly on Victron systems. When that happens, the system may show `Discharging` while the battery is actually charging, or the other way around.
 
-In der Victron Community gibt es dazu passende oder sehr ähnliche Berichte:
+These Victron Community threads describe the same or very similar behavior:
 
 - [Issue integrating Deye RW-F16 battery with Victron MultiPlus-II GX](https://community.victronenergy.com/t/issue-integrating-deye-rw-f16-battery-with-victron-multiplus-ii-gx/38218)
 - [Battery name correct on older Cerbo units, incorrect on new Cerbo units](https://community.victronenergy.com/t/battery-name-correct-on-older-cerbo-units-incorrect-on-new-cerbo-units/31622/15)
 
-## Was das Skript macht
-Das Skript legt einen separaten virtuellen Batterie-Dienst auf dem DBus an:
+## What the script does
+The script creates a separate virtual battery service on DBus:
 
-- Spannung wird gespiegelt
-- SoC wird gespiegelt
-- Strom wird invertiert
-- Leistung wird aus Spannung und Strom neu berechnet
-- Temperatur wird übernommen, wenn die Quellbatterie sie bereitstellt
+- Voltage is mirrored
+- SoC is mirrored
+- Current is inverted
+- Power is recalculated from voltage and current
+- Temperature is passed through when the source battery provides it
 
-Danach kannst du im GX einfach die virtuelle Batterie als Batteriewächter auswählen.
+After that, you can simply select the virtual battery as the battery monitor in the GX settings.
 
-## Den richtigen Batterie-Dienst prüfen
-Bevor du installierst, verbinde dich per SSH mit dem Cerbo GX und starte:
+## Check the battery service name first
+Before installing anything, connect to your Cerbo GX over SSH and run:
 
 ```sh
 dbus-spy
 ```
 
-Suche dort nach dem Batterie-Dienst, der mit `com.victronenergy.battery` beginnt.
+Look for the battery service that starts with `com.victronenergy.battery`.
 
-Falls dein Dienst nicht `com.victronenergy.battery.socketcan_vecan0` heißt, passe nach dem Download in der Python-Datei `SOURCE_SERVICE` an.
+If your service name is not `com.victronenergy.battery.socketcan_vecan0`, edit the Python file after downloading it and change `SOURCE_SERVICE`.
 
-## Installation auf dem Cerbo GX
+## Installation on Cerbo GX
 
-### 1. SSH aktivieren
-- Auf dem Cerbo GX zu `Settings -> General -> Access Level` gehen
-- `User and Installer` mit dem Passwort `zzz` setzen
-- Unter `Firmware -> Online Updates` ein Superuser-Passwort vergeben
-- `SSH on LAN` aktivieren
+### 1. Enable SSH
+- On the Cerbo GX, go to `Settings -> General -> Access Level`
+- Set it to `User and Installer` using password `zzz`
+- Under `Firmware -> Online Updates`, set a superuser password
+- Enable `SSH on LAN`
 
-### 2. Python-Dienst herunterladen
+### 2. Download the Python service
 ```sh
 mkdir -p /data/dbus-virtual-battery
 wget -O /data/dbus-virtual-battery/dbus-virtual-battery.py https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/dbus-virtual-battery.py
 chmod +x /data/dbus-virtual-battery/dbus-virtual-battery.py
 ```
 
-Falls nötig, den Dienstnamen anzupassen:
+If needed, edit the source service name:
 
 ```sh
 nano /data/dbus-virtual-battery/dbus-virtual-battery.py
 ```
 
-### 3. `run`-Datei herunterladen
+### 3. Download the `run` file
 ```sh
 mkdir -p /data/conf/service/dbus-virtual-battery
 wget -O /data/conf/service/dbus-virtual-battery/run https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/run
@@ -67,49 +67,49 @@ chmod +x /data/conf/service/dbus-virtual-battery/run
 ln -s /data/conf/service/dbus-virtual-battery /service/dbus-virtual-battery
 ```
 
-## Neustart und Fehlersuche
-Dienst neu starten:
+## Restart and troubleshooting
+Restart the service:
 
 ```sh
 svc -t /service/dbus-virtual-battery
 ```
 
-Dienst manuell starten:
+Bring it up manually:
 
 ```sh
 svc -u /service/dbus-virtual-battery
 ```
 
-Status prüfen:
+Check status:
 
 ```sh
 svstat /service/dbus-virtual-battery
 ```
 
-Logs live ansehen:
+Watch the log:
 
 ```sh
 tail -f /data/log/dbus-virtual-battery.log
 ```
 
-Falls die Werte noch nicht stimmen:
+If the values still look wrong:
 
-1. Mit `dbus-spy` den echten Batterie-Dienstnamen noch einmal prüfen
-2. Sicherstellen, dass die Quellbatterie `/Dc/0/Temperature` wirklich bereitstellt, wenn Temperatur erwartet wird
-3. Prüfen, ob der virtuelle Dienst als `com.victronenergy.battery.inverted_vecan0` erscheint
-4. Den Dienst nach jeder Skript-Änderung neu starten
+1. Double-check the real battery service name in `dbus-spy`
+2. Make sure the source battery actually exposes `/Dc/0/Temperature` if you expect temperature to appear
+3. Confirm the virtual service shows up as `com.victronenergy.battery.inverted_vecan0`
+4. Restart the service after every change to the script
 
-## Einrichtung im GX
-1. Die GX Remote Console öffnen
-2. Zu `Settings -> System Setup` gehen
-3. `Inverted Battery` als Batteriewächter auswählen
-4. Mit `dbus-spy` prüfen, ob Werte und Vorzeichen jetzt plausibel sind
+## Final setup in GX
+1. Open the GX Remote Console
+2. Go to `Settings -> System Setup`
+3. Select `Inverted Battery` as the battery monitor
+4. Check in `dbus-spy` that the values and signs now make sense
 
-## Wenn du das Projekt unterstützen möchtest
-Falls dir das Projekt geholfen hat und du mir einen Kaffee ausgeben möchtest:
+## If you want to support it
+If this project was useful and you feel like buying me a coffee, you can do that here:
 
 - [paypal.me/northy](https://paypal.me/northy)
 
-Das ist natürlich komplett freiwillig.
+That is completely optional.
 
-Das ist kein offizielles Produkt von Victron Energy. Nutzung auf eigene Gefahr.
+This is not an official Victron Energy product. Use it at your own risk.
