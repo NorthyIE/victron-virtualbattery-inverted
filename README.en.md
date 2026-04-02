@@ -4,6 +4,8 @@ I built this for Victron Venus OS because a BMS in my setup was reporting batter
 
 This project creates a small virtual battery service on DBus that mirrors the real battery, but corrects the current direction. It started as a fix for a specific Deye issue, but it may also help with other batteries or BMS integrations that show the same problem.
 
+![GX screenshot showing the original battery and the corrected inverted virtual battery](screenshots/settings-system-batteries.png)
+
 ## Why I made this
 Some BMS integrations appear to report current direction incorrectly on Victron systems. When that happens, the system may show `Discharging` while the battery is actually charging, or the other way around.
 

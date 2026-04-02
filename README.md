@@ -1,8 +1,10 @@
 # Victron Virtual Battery Inverted
 
-Dies ist ein Service für Victron Venus OS (Cerbo GX), da mein BMS in meinem ESS-Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. In meinem Fall war es ein Deye-BMS. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
+Ich habe das hier für Victron Venus OS gebaut, weil ein BMS in meinem Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. In meinem Fall war es ein Deye-BMS. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
 
-Das Projekt erstellt einen kleinen virtuellen Batterie-Dienst auf dem DBus, der die echte Batterie spiegelt, aber die Stromrichtung korrigiert. Entstanden ist aus einem Problem mit einem Deye RW-F16, kann aber möglicherweise auch bei anderen Batterien oder BMS helfen, wenn dort derselbe Fehler auftaucht.
+Das Projekt erstellt einen kleinen virtuellen Batterie-Dienst auf dem DBus, der die echte Batterie spiegelt, aber die Stromrichtung korrigiert. Entstanden ist es aus einem konkreten Deye-Problem, kann aber möglicherweise auch bei anderen Batterien oder BMS helfen, wenn dort derselbe Fehler auftaucht.
+
+![GX-Screenshot mit Originalbatterie und korrigierter virtueller Batterie](screenshots/settings-system-batteries.png)
 
 ## Warum
 Einige BMS-Integrationen scheinen auf Victron-Systemen die Stromrichtung falsch zu melden. Dann steht im System zum Beispiel `Entladen`, obwohl die Batterie gerade geladen wird, oder genau andersherum.
@@ -104,6 +106,8 @@ Falls die Werte noch nicht stimmen:
 ## Wenn du das Projekt unterstützen möchtest
 Falls dir das Projekt geholfen hat und du mir einen Kaffee ausgeben möchtest:
 
-- [paypal.me/northy](https://paypal.me/northy) - Das ist natürlich komplett freiwillig.
+- [paypal.me/northy](https://paypal.me/northy)
+
+Das ist natürlich komplett freiwillig.
 
 Das ist kein offizielles Produkt von Victron Energy. Nutzung auf eigene Gefahr.

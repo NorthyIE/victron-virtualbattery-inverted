@@ -27,6 +27,7 @@ logger = logging.getLogger("dbus_virtual_battery")
 DATA_PATHS = {
     "/Dc/0/Voltage": lambda value: value,
     "/Dc/0/Current": lambda value: float(value) * -1,
+    "/Dc/0/Power": lambda value: float(value) * -1,
     "/Soc": lambda value: value,
     "/Dc/0/Temperature": lambda value: value,
 }
@@ -42,6 +43,8 @@ class VirtualInvertedBattery:
         self.dbusservice = VeDbusService(VIRTUAL_NAME, self.bus, register=False)
         self.mainloop = GLib.MainLoop()
         self.source_items = {}
+        self.source_values = {}
+        self.flush_updates_source_id = None
 
         self._setup_service_paths()
         self.dbusservice.register()
@@ -89,7 +92,6 @@ class VirtualInvertedBattery:
 
         for path in DATA_PATHS:
             self.dbusservice.add_path(path, 0)
-        self.dbusservice.add_path("/Dc/0/Power", 0)
 
     def _setup_signal_receiver(self):
         self.bus.add_signal_receiver(
@@ -112,23 +114,33 @@ class VirtualInvertedBattery:
 
     def handle_dbus_change(self, changes, path):
         value = changes.get("Value")
-        if value is not None:
-            self.apply_value(path, value)
+        if value is not None and path in DATA_PATHS:
+            self.source_values[path] = value
+            self._schedule_flush_updates()
 
-    def apply_value(self, path, value):
-        transform = DATA_PATHS.get(path)
-        if transform is None or value is None:
-            return
+    def _schedule_flush_updates(self):
+        if self.flush_updates_source_id is None:
+            self.flush_updates_source_id = GLib.timeout_add(50, self.flush_updates)
 
-        try:
-            new_value = transform(value)
-            current_value = self.dbusservice[path]
-            if current_value != new_value:
-                self.dbusservice[path] = new_value
-                if path in ("/Dc/0/Voltage", "/Dc/0/Current"):
-                    self._update_power()
-        except (TypeError, ValueError, dbus.DBusException) as exc:
-            logger.error("Failed to map %s: %s", path, exc)
+    def flush_updates(self):
+        self.flush_updates_source_id = None
+
+        for path, transform in DATA_PATHS.items():
+            value = self.source_values.get(path)
+            if value is None:
+                continue
+
+            try:
+                new_value = transform(value)
+                if self.dbusservice[path] != new_value:
+                    self.dbusservice[path] = new_value
+            except (TypeError, ValueError, dbus.DBusException) as exc:
+                logger.error("Failed to map %s: %s", path, exc)
+
+        if "/Dc/0/Power" not in self.source_values:
+            self._update_power()
+
+        return False
 
     def _update_power(self):
         try:
@@ -149,11 +161,12 @@ class VirtualInvertedBattery:
                     source_item = dbus.Interface(proxy, "com.victronenergy.BusItem")
                     self.source_items[path] = source_item
 
-                self.apply_value(path, source_item.GetValue())
+                self.source_values[path] = source_item.GetValue()
             except dbus.DBusException as exc:
                 self.source_items.pop(path, None)
                 logger.debug("Polling failed for %s: %s", path, exc)
 
+        self._schedule_flush_updates()
         return True
 
     def run(self):
