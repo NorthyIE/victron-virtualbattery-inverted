@@ -50,7 +50,9 @@ If your service name is not `com.victronenergy.battery.socketcan_vecan0`, edit t
 ```sh
 mkdir -p /data/dbus-virtual-battery
 wget -O /data/dbus-virtual-battery/dbus-virtual-battery.py https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/dbus-virtual-battery.py
+wget -O /data/dbus-virtual-battery/install.sh https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/install.sh
 chmod +x /data/dbus-virtual-battery/dbus-virtual-battery.py
+chmod +x /data/dbus-virtual-battery/install.sh
 ```
 
 If needed, edit the source service name:
@@ -59,13 +61,21 @@ If needed, edit the source service name:
 nano /data/dbus-virtual-battery/dbus-virtual-battery.py
 ```
 
-### 3. Download the `run` File
+### 3. Install the service and make it survive reboots
 ```sh
-mkdir -p /data/conf/service/dbus-virtual-battery
-wget -O /data/conf/service/dbus-virtual-battery/run https://raw.githubusercontent.com/NorthyIE/victron-virtualbattery-inverted/main/run
-chmod +x /data/conf/service/dbus-virtual-battery/run
-ln -s /data/conf/service/dbus-virtual-battery /service/dbus-virtual-battery
+/data/dbus-virtual-battery/install.sh
 ```
+
+On Venus OS, `/service` is rebuilt during boot, so the install script needs to run again after every reboot and firmware update. Add this boot hook:
+
+```sh
+grep -qxF "/data/dbus-virtual-battery/install.sh" /data/rc.local || echo "/data/dbus-virtual-battery/install.sh" >> /data/rc.local
+chmod +x /data/rc.local
+```
+
+Also make sure `Settings -> General -> Modification checks -> Modifications enabled` is turned on, otherwise Venus OS will disable `/data/rc.local`.
+
+The install script recreates the `run` file in `/data/conf/service/dbus-virtual-battery`, relinks `/service/dbus-virtual-battery`, and restarts the service.
 
 ## Restart and troubleshooting
 Restart the service:
