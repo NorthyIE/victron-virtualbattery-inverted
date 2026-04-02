@@ -1,29 +1,29 @@
-# Victron DBus Virtual Inverted Battery
+# Victron Virtual Battery Inverted
 
-I put this together for Victron Venus OS because a Deye BMS in my setup was reporting battery current with the wrong sign. The result was confusing battery state information in the GX interface and VRM.
+I built this for Victron Venus OS because a BMS in my setup was reporting battery current with the wrong sign. In my case it was a Deye BMS. That made the battery state shown in GX and VRM pretty misleading.
 
-This project creates a small virtual battery service that mirrors the real battery on DBus, but fixes the current direction. It was built around Deye, but it may also help with other batteries or BMS integrations that show the same issue.
+This project creates a small virtual battery service on DBus that mirrors the real battery, but corrects the current direction. It started as a fix for a specific Deye issue, but it may also help with other batteries or BMS integrations that show the same problem.
 
-## Why I Made This
-Some Deye battery integrations appear to report current direction incorrectly on Victron systems. That can lead to situations where the system says the battery is discharging while it is actually charging, or the other way around.
+## Why I made this
+Some BMS integrations appear to report current direction incorrectly on Victron systems. When that happens, the system may show `Discharging` while the battery is actually charging, or the other way around.
 
-I was not the only one running into this. These Victron Community threads describe the same or very similar behavior:
+These Victron Community threads describe the same or very similar behavior:
 
 - [Issue integrating Deye RW-F16 battery with Victron MultiPlus-II GX](https://community.victronenergy.com/t/issue-integrating-deye-rw-f16-battery-with-victron-multiplus-ii-gx/38218)
 - [Battery name correct on older Cerbo units, incorrect on new Cerbo units](https://community.victronenergy.com/t/battery-name-correct-on-older-cerbo-units-incorrect-on-new-cerbo-units/31622/15)
 
-## What the Script Does
+## What the script does
 The script creates a separate virtual battery service on DBus:
 
-- voltage is mirrored
+- Voltage is mirrored
 - SoC is mirrored
-- current is inverted
-- power is recalculated from voltage and current
-- temperature is passed through when the source battery provides it
+- Current is inverted
+- Power is recalculated from voltage and current
+- Temperature is passed through when the source battery provides it
 
 After that, you can simply select the virtual battery as the battery monitor in the GX settings.
 
-## Check Your Battery Service Name First
+## Check the battery service name first
 Before installing anything, connect to your Cerbo GX over SSH and run:
 
 ```sh
@@ -63,7 +63,7 @@ chmod +x /data/conf/service/dbus-virtual-battery/run
 ln -s /data/conf/service/dbus-virtual-battery /service/dbus-virtual-battery
 ```
 
-## Restart and Troubleshooting
+## Restart and troubleshooting
 Restart the service:
 
 ```sh
@@ -95,15 +95,17 @@ If the values still look wrong:
 3. Confirm the virtual service shows up as `com.victronenergy.battery.inverted_vecan0`
 4. Restart the service after every change to the script
 
-## Final Setup in GX
+## Final setup in GX
 1. Open the GX Remote Console
 2. Go to `Settings -> System Setup`
 3. Select `Inverted Battery` as the battery monitor
 4. Check in `dbus-spy` that the values and signs now make sense
 
-## If You Want to Support It
+## If you want to support it
 If this project was useful and you feel like buying me a coffee, you can do that here:
 
-- [paypal.me/northy](https://paypal.me/northy) - That is completely optional though :)
+- [paypal.me/northy](https://paypal.me/northy)
+
+That is completely optional.
 
 This is not an official Victron Energy product. Use it at your own risk.

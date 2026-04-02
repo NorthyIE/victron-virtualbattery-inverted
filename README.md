@@ -1,11 +1,11 @@
-# Victron DBus Virtual Inverted Battery
+# Victron Virtual Battery Inverted
 
-Ich habe das hier für Victron Venus OS gebaut, weil ein Deye-BMS in meinem Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
+Dies ist ein Service für Victron Venus OS (Cerbo GX), da mein BMS in meinem ESS-Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. In meinem Fall war es ein Deye-BMS. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
 
-Dieses Projekt erstellt einen kleinen virtuellen Batterie-Dienst auf dem DBus, der die echte Batterie spiegelt, aber die Stromrichtung korrigiert. Entstanden ist es für Deye, aber es kann möglicherweise auch bei anderen Batterien oder BMS helfen, wenn dort derselbe Fehler auftaucht.
+Das Projekt erstellt einen kleinen virtuellen Batterie-Dienst auf dem DBus, der die echte Batterie spiegelt, aber die Stromrichtung korrigiert. Entstanden ist aus einem Problem mit einem Deye RW-F16, kann aber möglicherweise auch bei anderen Batterien oder BMS helfen, wenn dort derselbe Fehler auftaucht.
 
-## Warum 
-Einige BMS (in meinem Fall von Deye) scheinen auf Victron-Systemen die Stromrichtung falsch zu melden. Dann steht im System zum Beispiel `Entladen`, obwohl die Batterie gerade geladen wird, oder genau andersherum.
+## Warum
+Einige BMS-Integrationen scheinen auf Victron-Systemen die Stromrichtung falsch zu melden. Dann steht im System zum Beispiel `Entladen`, obwohl die Batterie gerade geladen wird, oder genau andersherum.
 
 In der Victron Community gibt es dazu passende oder sehr ähnliche Berichte:
 
@@ -23,16 +23,8 @@ Das Skript legt einen separaten virtuellen Batterie-Dienst auf dem DBus an:
 
 Danach kannst du im GX einfach die virtuelle Batterie als Batteriewächter auswählen.
 
-## Installation auf dem Cerbo GX
-
-### 1. SSH aktivieren
-- Auf dem Cerbo GX zu `Settings -> General -> Access Level` gehen
-- `User and Installer` mit dem Passwort `zzz` setzen
-- Unter `Firmware -> Online Updates` ein Superuser-Passwort vergeben
-- `SSH on LAN` aktivieren
-
 ## Den richtigen Batterie-Dienst prüfen
-Verbinde dich per SSH mit dem Cerbo GX und starte:
+Bevor du installierst, verbinde dich per SSH mit dem Cerbo GX und starte:
 
 ```sh
 dbus-spy
@@ -41,6 +33,14 @@ dbus-spy
 Suche dort nach dem Batterie-Dienst, der mit `com.victronenergy.battery` beginnt.
 
 Falls dein Dienst nicht `com.victronenergy.battery.socketcan_vecan0` heißt, passe nach dem Download in der Python-Datei `SOURCE_SERVICE` an.
+
+## Installation auf dem Cerbo GX
+
+### 1. SSH aktivieren
+- Auf dem Cerbo GX zu `Settings -> General -> Access Level` gehen
+- `User and Installer` mit dem Passwort `zzz` setzen
+- Unter `Firmware -> Online Updates` ein Superuser-Passwort vergeben
+- `SSH on LAN` aktivieren
 
 ### 2. Python-Dienst herunterladen
 ```sh
