@@ -7,8 +7,9 @@ SCRIPT_PATH="$BASE_DIR/dbus-virtual-battery.py"
 SERVICE_DIR="/data/conf/service/$SERVICE_NAME"
 LIVE_SERVICE_DIR="/service/$SERVICE_NAME"
 RUN_FILE="$SERVICE_DIR/run"
+LOG_DIR="/data/log/$SERVICE_NAME"
 
-mkdir -p "$BASE_DIR" "$SERVICE_DIR"
+mkdir -p "$BASE_DIR" "$SERVICE_DIR" "$LOG_DIR"
 
 if [ ! -f "$SCRIPT_PATH" ]; then
     echo "Missing $SCRIPT_PATH" >&2
@@ -17,6 +18,7 @@ fi
 
 cat > "$RUN_FILE" <<'EOF'
 #!/bin/sh
+export LOG_FILE=/data/log/dbus-virtual-battery/dbus-virtual-battery.log
 exec python3 /data/dbus-virtual-battery/dbus-virtual-battery.py
 EOF
 

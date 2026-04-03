@@ -13,7 +13,7 @@ from gi.repository import GLib
 SOURCE_SERVICE = os.environ.get("SOURCE_SERVICE", "com.victronenergy.battery.socketcan_vecan0")
 VIRTUAL_NAME = os.environ.get("VIRTUAL_NAME", "com.victronenergy.battery.inverted_vecan0")
 DEVICE_INSTANCE = int(os.environ.get("DEVICE_INSTANCE", "100"))
-LOG_FILE = os.environ.get("LOG_FILE", "/data/log/dbus-virtual-battery.log")
+LOG_FILE = os.environ.get("LOG_FILE", "/data/log/dbus-virtual-battery/dbus-virtual-battery.log")
 POLL_INTERVAL_MS = int(os.environ.get("POLL_INTERVAL_MS", "2000"))
 
 VE_LIB_PATH = "/opt/victronenergy/dbus-systemcalc-py/ext/velib_python"

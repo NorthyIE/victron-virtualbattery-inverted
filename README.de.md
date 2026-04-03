@@ -75,7 +75,9 @@ chmod +x /data/rc.local
 
 Pruefe ausserdem, dass unter `Settings -> General -> Modification checks -> Modifications enabled` die Modifikationen aktiviert sind, sonst deaktiviert Venus OS die `/data/rc.local`.
 
-Das Installationsskript erstellt die `run`-Datei in `/data/conf/service/dbus-virtual-battery` neu, verlinkt `/service/dbus-virtual-battery` und startet den Dienst neu.
+Das Installationsskript erstellt die `run`-Datei in `/data/conf/service/dbus-virtual-battery` neu, verlinkt `/service/dbus-virtual-battery`, legt das Log-Verzeichnis unter `/data/log/dbus-virtual-battery` an und startet den Dienst neu.
+
+Die Logs liegen unter `/data/log/dbus-virtual-battery/dbus-virtual-battery.log`.
 
 ## Neustart und Fehlersuche
 Dienst neu starten:
@@ -99,7 +101,7 @@ svstat /service/dbus-virtual-battery
 Logs live ansehen:
 
 ```sh
-tail -f /data/log/dbus-virtual-battery.log
+tail -f /data/log/dbus-virtual-battery/dbus-virtual-battery.log
 ```
 
 Falls die Werte noch nicht stimmen:

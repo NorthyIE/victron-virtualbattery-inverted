@@ -77,6 +77,8 @@ Also make sure `Settings -> General -> Modification checks -> Modifications enab
 
 The install script recreates the `run` file in `/data/conf/service/dbus-virtual-battery`, relinks `/service/dbus-virtual-battery`, and restarts the service.
 
+Logs are written to `/data/log/dbus-virtual-battery/dbus-virtual-battery.log`.
+
 ## Restart and troubleshooting
 Restart the service:
 
@@ -99,7 +101,7 @@ svstat /service/dbus-virtual-battery
 Watch the log:
 
 ```sh
-tail -f /data/log/dbus-virtual-battery.log
+tail -f /data/log/dbus-virtual-battery/dbus-virtual-battery.log
 ```
 
 If the values still look wrong:

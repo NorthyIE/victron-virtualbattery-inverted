@@ -1,2 +1,3 @@
 #!/bin/sh
+export LOG_FILE=/data/log/dbus-virtual-battery/dbus-virtual-battery.log
 exec python3 /data/dbus-virtual-battery/dbus-virtual-battery.py
