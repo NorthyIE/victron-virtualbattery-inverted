@@ -1,6 +1,3 @@
-ssh root@192.168.1.100
-
-cat > /data/dbus-virtual-battery/dbus-virtual-battery.py << 'EOF'
 #!/usr/bin/env python3
 
 import logging
@@ -200,8 +197,3 @@ if __name__ == "__main__":
         else:
             print(f"Service crashed: {exc}", file=sys.stderr)
         sys.exit(1)
-EOF
-
-chmod +x /data/dbus-virtual-battery/dbus-virtual-battery.py
-svc -t /service/dbus-virtual-battery
-tail -f /data/log/dbus-virtual-battery/dbus-virtual-battery.log
