@@ -15,6 +15,7 @@ VIRTUAL_NAME = os.environ.get("VIRTUAL_NAME", "com.victronenergy.battery.inverte
 DEVICE_INSTANCE = int(os.environ.get("DEVICE_INSTANCE", "100"))
 LOG_FILE = os.environ.get("LOG_FILE", "/data/log/dbus-virtual-battery/dbus-virtual-battery.log")
 POLL_INTERVAL_MS = int(os.environ.get("POLL_INTERVAL_MS", "2000"))
+POLL_RETRY_MAX_ATTEMPTS = int(os.environ.get("POLL_RETRY_MAX_ATTEMPTS", "3"))
 
 VE_LIB_PATH = "/opt/victronenergy/dbus-systemcalc-py/ext/velib_python"
 if VE_LIB_PATH not in sys.path:
@@ -45,10 +46,12 @@ class VirtualInvertedBattery:
         self.source_items = {}
         self.source_values = {}
         self.flush_updates_source_id = None
+        self.poll_retry_count = {}
 
         self._setup_service_paths()
         self.dbusservice.register()
         self._setup_signal_receiver()
+        self._verify_source_service_exists()
         self._prime_source_paths()
         self._setup_exit_handlers()
 
@@ -71,18 +74,30 @@ class VirtualInvertedBattery:
         logger.addHandler(handler)
         logger.propagate = False
 
+    def _verify_source_service_exists(self):
+        """Verify that the source service is available on DBus at startup."""
+        try:
+            self.bus.get_object(SOURCE_SERVICE, "/Dc/0/Voltage")
+            logger.info("Source service %s is available.", SOURCE_SERVICE)
+        except dbus.DBusException as exc:
+            logger.error("Source service %s not found: %s", SOURCE_SERVICE, exc)
+            raise RuntimeError(f"Source service {SOURCE_SERVICE} not available on DBus")
+
     def _setup_exit_handlers(self):
         signal.signal(signal.SIGINT, self._handle_exit)
         signal.signal(signal.SIGTERM, self._handle_exit)
 
     def _handle_exit(self, signum, frame):
         logger.info("Service is shutting down on signal %s.", signum)
-        if self.mainloop.is_running():
-            self.mainloop.quit()
+        try:
+            if self.mainloop.is_running():
+                self.mainloop.quit()
+        except Exception as exc:
+            logger.error("Error during shutdown: %s", exc)
 
     def _setup_service_paths(self):
         self.dbusservice.add_path("/Mgmt/ProcessName", __file__)
-        self.dbusservice.add_path("/Mgmt/ProcessVersion", "1.1")
+        self.dbusservice.add_path("/Mgmt/ProcessVersion", "1.2")
         self.dbusservice.add_path("/Mgmt/Connection", "Virtual CAN Bus Bridge")
         self.dbusservice.add_path("/DeviceInstance", DEVICE_INSTANCE)
         self.dbusservice.add_path("/ProductId", 0xFFFF)
@@ -107,8 +122,10 @@ class VirtualInvertedBattery:
             try:
                 proxy = self.bus.get_object(SOURCE_SERVICE, path)
                 self.source_items[path] = dbus.Interface(proxy, "com.victronenergy.BusItem")
+                self.poll_retry_count[path] = 0
             except dbus.DBusException as exc:
                 logger.warning("DBus path %s is not available at startup: %s", path, exc)
+                self.poll_retry_count[path] = 0
 
         self.poll_source()
 
@@ -116,6 +133,8 @@ class VirtualInvertedBattery:
         value = changes.get("Value")
         if value is not None and path in DATA_PATHS:
             self.source_values[path] = value
+            if path in self.poll_retry_count:
+                self.poll_retry_count[path] = 0
             self._schedule_flush_updates()
 
     def _schedule_flush_updates(self):
@@ -143,16 +162,25 @@ class VirtualInvertedBattery:
         return False
 
     def _update_power(self):
+        """Calculate power from voltage and current if source doesn't provide it."""
         try:
-            voltage = float(self.dbusservice["/Dc/0/Voltage"])
-            current = float(self.dbusservice["/Dc/0/Current"])
+            voltage = self.dbusservice["/Dc/0/Voltage"]
+            current = self.dbusservice["/Dc/0/Current"]
+            
+            if voltage is None or current is None:
+                return
+            
+            voltage = float(voltage)
+            current = float(current)
             power = voltage * current
+            
             if self.dbusservice["/Dc/0/Power"] != power:
                 self.dbusservice["/Dc/0/Power"] = power
         except (TypeError, ValueError, dbus.DBusException) as exc:
             logger.error("Failed to calculate /Dc/0/Power: %s", exc)
 
     def poll_source(self):
+        """Poll source service for current values with retry logic."""
         for path in DATA_PATHS:
             try:
                 source_item = self.source_items.get(path)
@@ -160,11 +188,20 @@ class VirtualInvertedBattery:
                     proxy = self.bus.get_object(SOURCE_SERVICE, path)
                     source_item = dbus.Interface(proxy, "com.victronenergy.BusItem")
                     self.source_items[path] = source_item
+                    self.poll_retry_count[path] = 0
 
                 self.source_values[path] = source_item.GetValue()
+                self.poll_retry_count[path] = 0
             except dbus.DBusException as exc:
-                self.source_items.pop(path, None)
-                logger.debug("Polling failed for %s: %s", path, exc)
+                retry_count = self.poll_retry_count.get(path, 0)
+                if retry_count < POLL_RETRY_MAX_ATTEMPTS:
+                    self.poll_retry_count[path] = retry_count + 1
+                    logger.debug("Polling failed for %s (attempt %d/%d): %s", 
+                               path, retry_count + 1, POLL_RETRY_MAX_ATTEMPTS, exc)
+                else:
+                    self.source_items.pop(path, None)
+                    logger.warning("Polling failed for %s after %d attempts, removing from cache", 
+                                 path, POLL_RETRY_MAX_ATTEMPTS)
 
         self._schedule_flush_updates()
         return True
@@ -174,12 +211,17 @@ class VirtualInvertedBattery:
 
 
 if __name__ == "__main__":
+    # Setup logging before any logger calls
     try:
         service = VirtualInvertedBattery()
         service.run()
     except Exception as exc:
-        if logger.handlers:
-            logger.critical("Service crashed: %s", exc)
-        else:
+        # Always try to log, but have fallback to stderr
+        try:
+            if logger.handlers:
+                logger.critical("Service crashed: %s", exc)
+            else:
+                print(f"Service crashed: {exc}", file=sys.stderr)
+        except Exception:
             print(f"Service crashed: {exc}", file=sys.stderr)
         sys.exit(1)
