@@ -30,7 +30,7 @@ LOG_FILE = os.environ.get("LOG_FILE", "/data/log/dbus-deye-battery/dbus-deye-bat
 POLL_INTERVAL_MS = int(os.environ.get("POLL_INTERVAL_MS", "1000"))
 ONLINE_TIMEOUT_SECONDS = int(os.environ.get("ONLINE_TIMEOUT_SECONDS", "5"))
 NR_OF_CELLS_PER_BATTERY = int(os.environ.get("NR_OF_CELLS_PER_BATTERY", "16"))
-BATTERY_CAPACITY_AH = float(os.environ.get("BATTERY_CAPACITY_AH", "100"))
+BATTERY_CAPACITY_AH = float(os.environ.get("BATTERY_CAPACITY_AH", "314"))
 CURRENT_SIGN_CORRECTION = float(os.environ.get("CURRENT_SIGN_CORRECTION", "-1"))
 PUBLISH_RAW_STRINGS = os.environ.get("PUBLISH_RAW_STRINGS", "1") == "1"
 
@@ -96,7 +96,7 @@ class DeyeCanBattery:
     def _setup_paths(self):
         add = self.dbusservice.add_path
         add("/Mgmt/ProcessName", __file__)
-        add("/Mgmt/ProcessVersion", "1.0")
+        add("/Mgmt/ProcessVersion", "1.1")
         add("/Mgmt/Connection", f"SocketCAN {CAN_INTERFACE}")
         add("/DeviceInstance", DEVICE_INSTANCE)
         add("/ProductId", 0xFFFF)
@@ -156,6 +156,7 @@ class DeyeCanBattery:
             add(path, value)
 
         self.values.update(default_paths)
+        self._update_capacity_from_soc()
 
     def _open_can_socket(self):
         self.socket = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
@@ -190,6 +191,12 @@ class DeyeCanBattery:
         self.values[path] = value
         self.dbusservice[path] = value
 
+    def _update_capacity_from_soc(self):
+        installed_capacity = float(self.values.get("/InstalledCapacity", BATTERY_CAPACITY_AH))
+        soc = float(self.values.get("/Soc", 0.0))
+        available_capacity = round(installed_capacity * max(0.0, min(soc, 100.0)) / 100.0, 1)
+        self._set("/Capacity", available_capacity)
+
     @staticmethod
     def _u16le(data: bytes, offset: int, scale: float = 1.0) -> float:
         return int.from_bytes(data[offset:offset + 2], "little", signed=False) * scale
@@ -208,6 +215,7 @@ class DeyeCanBattery:
         elif can_id == 0x355 and len(data) >= 2:
             self._set("/Soc", float(data[0]))
             self._set("/Soh", float(data[1]))
+            self._update_capacity_from_soc()
 
         elif can_id == 0x356 and len(data) >= 6:
             voltage = self._u16le(data, 0, 0.01)
