@@ -4,10 +4,10 @@
 
 I originally built this for Victron Venus OS because a BMS in my setup was reporting battery current with the wrong sign. In my case it was a Deye BMS. That made the battery state shown in GX and VRM pretty misleading.
 
-The project has now grown into two related pieces:
+The project now consists of two related parts:
 
-1. **A virtual battery mirror** that copies a real battery service on DBus and inverts current and power.
-2. **A Deye CAN battery source driver** that reads Deye battery frames from SocketCAN and publishes them as a Victron battery service on DBus.
+1. **A Deye CAN battery source driver** that reads Deye battery frames from SocketCAN and publishes them as a Victron battery service on DBus.
+2. **A virtual battery mirror** that copies a real battery service on DBus and inverts current and power, while mirroring almost all other available battery paths automatically.
 
 You can use either one on its own, or chain them together.
 
@@ -15,35 +15,16 @@ You can use either one on its own, or chain them together.
 
 ## What this repo can do now
 
-### Option A: Mirror an existing battery service and invert the sign
-This is the original use case.
-
-The virtual battery service mirrors a real battery service and:
-
-- mirrors voltage
-- mirrors SoC
-- inverts current
-- inverts power
-- mirrors temperature
-- mirrors many additional Victron battery paths if the source provides them, including:
-  - charge and discharge limits
-  - max/min cell voltage
-  - alarms
-  - module counts
-  - history values
-  - common cell-voltage and balancing paths
-
-This is useful when your battery is already visible on DBus, but the current direction is wrong.
-
-### Option B: Publish a Deye battery directly from CAN
-The new source driver listens on SocketCAN and publishes a Victron battery DBus service for a Deye battery.
+### Option A: Publish a Deye battery directly from CAN
+The Deye source driver listens on SocketCAN and publishes a Victron battery DBus service for a Deye battery.
 
 It currently decodes the summary frames that were visible in my Deye logs, including:
 
 - battery voltage
 - battery current
 - battery power
-- SoC / SoH
+- SoC
+- SoH
 - battery temperature
 - MOS temperature
 - max charge voltage
@@ -57,6 +38,26 @@ It currently decodes the summary frames that were visible in my Deye logs, inclu
 - cycle count
 - raw alarm flags
 - selected firmware / serial string fragments when present
+
+The installed battery capacity is read from the environment variable `BATTERY_CAPACITY_AH`. For a Deye RW-F16 the correct value is typically **314 Ah**.
+
+The available capacity shown on GX is calculated from:
+
+- installed capacity
+- current SoC
+
+### Option B: Mirror an existing battery service and invert the sign
+This is the original use case.
+
+The virtual battery service mirrors a real battery service and:
+
+- mirrors voltage
+- mirrors SoC
+- inverts current
+- inverts power
+- mirrors almost all other source battery paths automatically via DBus discovery
+
+This is useful when your battery is already visible on DBus, but the current direction is wrong.
 
 ### Option C: Use both together
 This is the best choice if:
@@ -73,9 +74,9 @@ Then you select the **Inverted Battery** in GX.
 
 ## Which setup should you use?
 
-Use **only the virtual battery** if your real battery already appears in `dbus-spy` and you only need to fix the sign.
-
 Use **only the Deye source driver** if you want a native Deye battery service on DBus and the sign already looks correct in your environment.
+
+Use **only the virtual battery** if your real battery already appears in `dbus-spy` and you only need to fix the sign.
 
 Use **both together** if you are integrating a Deye battery from CAN and still need the current sign corrected.
 
@@ -116,6 +117,23 @@ chmod +x /data/dbus-virtual-battery/install.sh
 
 ### 3. Pick your mode
 
+#### Deye CAN source only
+This creates a Deye battery service directly from CAN without creating the inverted mirror.
+
+```sh
+INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=0 BATTERY_CAPACITY_AH=314 /data/dbus-virtual-battery/install.sh
+```
+
+Optional environment overrides:
+
+```sh
+CAN_INTERFACE=vecan0
+SERVICE_NAME=com.victronenergy.battery.deye_vecan0
+DEVICE_INSTANCE=101
+BATTERY_CAPACITY_AH=314
+CURRENT_SIGN_CORRECTION=-1
+```
+
 #### Existing DBus battery only
 This keeps the original behavior.
 
@@ -125,29 +143,13 @@ SOURCE_SERVICE=com.victronenergy.battery.socketcan_vecan0 /data/dbus-virtual-bat
 
 If your existing battery service has a different name, change `SOURCE_SERVICE` accordingly.
 
-#### Deye CAN source only
-This creates a Deye battery service directly from CAN without creating the inverted mirror.
-
-```sh
-INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=0 /data/dbus-virtual-battery/install.sh
-```
-
-Optional environment overrides:
-
-```sh
-CAN_INTERFACE=vecan0
-SERVICE_NAME=com.victronenergy.battery.deye_vecan0
-DEVICE_INSTANCE=101
-BATTERY_CAPACITY_AH=100
-CURRENT_SIGN_CORRECTION=-1
-```
-
 #### Deye CAN source plus inverted virtual battery
 This installs both services and makes the virtual battery read from the Deye source service.
 
 ```sh
 INSTALL_DEYE_SOURCE=1 \
 INSTALL_VIRTUAL_BATTERY=1 \
+BATTERY_CAPACITY_AH=314 \
 SOURCE_SERVICE=com.victronenergy.battery.deye_vecan0 \
 /data/dbus-virtual-battery/install.sh
 ```
@@ -165,7 +167,7 @@ chmod +x /data/rc.local
 If you use custom environment variables, put them in `/data/rc.local` too. Example:
 
 ```sh
-grep -qxF "INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=1 SOURCE_SERVICE=com.victronenergy.battery.deye_vecan0 /data/dbus-virtual-battery/install.sh" /data/rc.local || echo "INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=1 SOURCE_SERVICE=com.victronenergy.battery.deye_vecan0 /data/dbus-virtual-battery/install.sh" >> /data/rc.local
+grep -qxF "INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=1 BATTERY_CAPACITY_AH=314 SOURCE_SERVICE=com.victronenergy.battery.deye_vecan0 /data/dbus-virtual-battery/install.sh" /data/rc.local || echo "INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=1 BATTERY_CAPACITY_AH=314 SOURCE_SERVICE=com.victronenergy.battery.deye_vecan0 /data/dbus-virtual-battery/install.sh" >> /data/rc.local
 chmod +x /data/rc.local
 ```
 
@@ -198,13 +200,6 @@ Restart the virtual battery service:
 svc -t /service/dbus-virtual-battery
 ```
 
-Bring them up manually:
-
-```sh
-svc -u /service/dbus-deye-battery
-svc -u /service/dbus-virtual-battery
-```
-
 Check status:
 
 ```sh
@@ -227,18 +222,10 @@ If the values still look wrong:
 4. If the current sign is still backwards, try changing `CURRENT_SIGN_CORRECTION` from `-1` to `1`
 5. Restart the relevant service after every change
 
-## Final setup in GX
-If you use the virtual service:
-
-1. Open the GX Remote Console
-2. Go to `Settings -> System Setup`
-3. Select `Inverted Battery` as the battery monitor
-4. Check in `dbus-spy` that the values and signs now make sense
-
-If you use only the Deye source service, select the Deye battery service instead.
-
-## Important limitation
+## Important limitations
 The Deye source driver currently decodes the **summary / inverter-facing CAN frames** that were available in my logs. It does **not** yet decode the separate full per-cell InterCAN extended frames.
+
+The virtual battery mirrors almost all source battery paths automatically, but it can only mirror data that really exists on the source battery DBus service.
 
 ## If you want to support it
 If this project was useful and you feel like buying me a coffee, you can do that here:
