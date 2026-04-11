@@ -4,8 +4,9 @@ import logging
 import os
 import signal
 import sys
+import xml.etree.ElementTree as ET
 from logging.handlers import RotatingFileHandler
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Set
 
 import dbus
 from dbus.mainloop.glib import DBusGMainLoop
@@ -16,6 +17,7 @@ VIRTUAL_NAME = os.environ.get("VIRTUAL_NAME", "com.victronenergy.battery.inverte
 DEVICE_INSTANCE = int(os.environ.get("DEVICE_INSTANCE", "100"))
 LOG_FILE = os.environ.get("LOG_FILE", "/data/log/dbus-virtual-battery/dbus-virtual-battery.log")
 POLL_INTERVAL_MS = int(os.environ.get("POLL_INTERVAL_MS", "2000"))
+DISCOVERY_INTERVAL_MS = int(os.environ.get("DISCOVERY_INTERVAL_MS", "30000"))
 
 VE_LIB_PATH = "/opt/victronenergy/dbus-systemcalc-py/ext/velib_python"
 if VE_LIB_PATH not in sys.path:
@@ -25,6 +27,22 @@ from vedbus import VeDbusService
 
 logger = logging.getLogger("dbus_virtual_battery")
 
+INVERTED_PATHS = {
+    "/Dc/0/Current",
+    "/Dc/0/Power",
+}
+
+OWN_METADATA_PATHS = {
+    "/Mgmt/ProcessName",
+    "/Mgmt/ProcessVersion",
+    "/Mgmt/Connection",
+    "/DeviceInstance",
+    "/ProductId",
+    "/ProductName",
+    "/Connected",
+    "/CustomName",
+}
+
 
 def identity(value: Any) -> Any:
     return value
@@ -32,124 +50,6 @@ def identity(value: Any) -> Any:
 
 def invert_signed_numeric(value: Any) -> float:
     return float(value) * -1
-
-
-CORE_DATA_PATHS: Dict[str, Callable[[Any], Any]] = {
-    "/Dc/0/Voltage": identity,
-    "/Dc/0/Current": invert_signed_numeric,
-    "/Dc/0/Power": invert_signed_numeric,
-    "/Soc": identity,
-    "/Dc/0/Temperature": identity,
-}
-
-OPTIONAL_DATA_PATHS: Dict[str, Callable[[Any], Any]] = {
-    # Battery state and identity
-    "/State": identity,
-    "/Mode": identity,
-    "/DeviceName": identity,
-    "/FirmwareVersion": identity,
-    "/HardwareVersion": identity,
-    "/Serial": identity,
-
-    # Standard Victron BMS control / DVCC
-    "/Info/MaxChargeCurrent": identity,
-    "/Info/MaxDischargeCurrent": identity,
-    "/Info/MaxChargeVoltage": identity,
-    "/Info/BatteryLowVoltage": identity,
-    "/Info/ChargeRequest": identity,
-    "/Bms/AllowToCharge": identity,
-    "/Bms/AllowToDischarge": identity,
-    "/Bms/BmsExpected": identity,
-    "/Bms/Error": identity,
-    "/Bms/Charge/AllowedA": identity,
-    "/Bms/Discharge/AllowedA": identity,
-
-    # DC measurements and cell summary
-    "/Dc/0/Temperature": identity,
-    "/Dc/0/MosfetTemperature": identity,
-    "/Dc/0/MaxCellVoltage": identity,
-    "/Dc/0/MinCellVoltage": identity,
-    "/Dc/0/MidVoltage": identity,
-    "/Dc/0/MidVoltageDeviation": identity,
-    "/Dc/0/AlarmFlags": identity,
-
-    # Capacity / energy / runtime
-    "/Capacity": identity,
-    "/InstalledCapacity": identity,
-    "/ConsumedAmphours": identity,
-    "/TimeToGo": identity,
-
-    # System / module / pack detail
-    "/System/MinCellTemperature": identity,
-    "/System/MaxCellTemperature": identity,
-    "/System/MinVoltageCellId": identity,
-    "/System/MaxVoltageCellId": identity,
-    "/System/MinTemperatureCellId": identity,
-    "/System/MaxTemperatureCellId": identity,
-    "/System/NrOfCellsPerBattery": identity,
-    "/System/NrOfModulesOnline": identity,
-    "/System/NrOfModulesOffline": identity,
-    "/System/NrOfModulesBlockingCharge": identity,
-    "/System/NrOfModulesBlockingDischarge": identity,
-    "/System/MostDischargedCell": identity,
-    "/System/MostChargedCell": identity,
-
-    # IO / balancing
-    "/Io/AllowToCharge": identity,
-    "/Io/AllowToDischarge": identity,
-    "/Io/AllowToBalance": identity,
-    "/Balancing": identity,
-
-    # Alarms
-    "/Alarms/Alarm": identity,
-    "/Alarms/LowVoltage": identity,
-    "/Alarms/HighVoltage": identity,
-    "/Alarms/LowSoc": identity,
-    "/Alarms/HighChargeCurrent": identity,
-    "/Alarms/HighDischargeCurrent": identity,
-    "/Alarms/HighCurrent": identity,
-    "/Alarms/CellImbalance": identity,
-    "/Alarms/InternalFailure": identity,
-    "/Alarms/LowTemperature": identity,
-    "/Alarms/HighTemperature": identity,
-    "/Alarms/LowChargeTemperature": identity,
-    "/Alarms/HighChargeTemperature": identity,
-    "/Alarms/LowCellVoltage": identity,
-    "/Alarms/HighCellVoltage": identity,
-    "/Alarms/HighInternalTemperature": identity,
-    "/Alarms/BmsCable": identity,
-    "/Alarms/Contactor": identity,
-    "/Alarms/FuseBlown": identity,
-
-    # Settings / feature flags
-    "/Settings/HasTemperature": identity,
-    "/Settings/HasMidVoltage": identity,
-    "/Settings/HasStarterVoltage": identity,
-
-    # History
-    "/History/ChargeCycles": identity,
-    "/History/DeepestDischarge": identity,
-    "/History/LastDischarge": identity,
-    "/History/AverageDischarge": identity,
-    "/History/FullDischarges": identity,
-    "/History/TotalAhDrawn": identity,
-    "/History/MinimumVoltage": identity,
-    "/History/MaximumVoltage": identity,
-    "/History/TimeSinceLastFullCharge": identity,
-    "/History/AutomaticSyncs": identity,
-    "/History/LowVoltageAlarms": identity,
-    "/History/HighVoltageAlarms": identity,
-    "/History/LowStarterVoltageAlarms": identity,
-    "/History/HighStarterVoltageAlarms": identity,
-}
-
-# Common dynamic per-cell path layouts used by Victron battery drivers and aggregators.
-DYNAMIC_PATH_PATTERNS = [
-    "/Voltages/Cell{index}",
-    "/Balances/Cell{index}",
-    "/Cell/{index}/Volts",
-    "/Cell/{index}/Balancing",
-]
 
 
 class VirtualInvertedBattery:
@@ -167,12 +67,14 @@ class VirtualInvertedBattery:
         self.flush_updates_source_id: Optional[int] = None
 
         self._setup_service_paths()
+        self._discover_and_enable_paths()
         self.dbusservice.register()
         self._setup_signal_receiver()
         self._prime_source_paths()
         self._setup_exit_handlers()
 
         GLib.timeout_add(POLL_INTERVAL_MS, self.poll_source)
+        GLib.timeout_add(DISCOVERY_INTERVAL_MS, self.refresh_discovery)
         logger.info("Started monitoring %s with %d mirrored paths.", SOURCE_SERVICE, len(self.active_paths))
 
     def setup_logging(self):
@@ -200,6 +102,21 @@ class VirtualInvertedBattery:
         if self.mainloop.is_running():
             self.mainloop.quit()
 
+    def _setup_service_paths(self):
+        self.dbusservice.add_path("/Mgmt/ProcessName", __file__)
+        self.dbusservice.add_path("/Mgmt/ProcessVersion", "3.0")
+        self.dbusservice.add_path("/Mgmt/Connection", f"Virtual Battery via {SOURCE_SERVICE}")
+        self.dbusservice.add_path("/DeviceInstance", DEVICE_INSTANCE)
+        self.dbusservice.add_path("/ProductId", 0xFFFF)
+        self.dbusservice.add_path("/ProductName", "Virtual Inverted Battery")
+        self.dbusservice.add_path("/Connected", 1)
+        self.dbusservice.add_path("/CustomName", "Inverted Battery")
+
+    def _transform_for_path(self, path: str) -> Callable[[Any], Any]:
+        if path in INVERTED_PATHS:
+            return invert_signed_numeric
+        return identity
+
     def _probe_path(self, path: str) -> Optional[Any]:
         try:
             proxy = self.bus.get_object(SOURCE_SERVICE, path)
@@ -208,36 +125,81 @@ class VirtualInvertedBattery:
         except dbus.DBusException:
             return None
 
-    def _enable_path(self, path: str, transform: Callable[[Any], Any], default_value: Any = 0):
-        if path in self.active_paths:
+    def _enable_path(self, path: str, default_value: Any):
+        if path in self.active_paths or path in OWN_METADATA_PATHS:
             return
 
+        transform = self._transform_for_path(path)
         self.active_paths[path] = transform
         self.dbusservice.add_path(path, default_value)
         logger.info("Mirroring path: %s", path)
 
-    def _setup_service_paths(self):
-        self.dbusservice.add_path("/Mgmt/ProcessName", __file__)
-        self.dbusservice.add_path("/Mgmt/ProcessVersion", "2.1")
-        self.dbusservice.add_path("/Mgmt/Connection", f"Virtual Battery via {SOURCE_SERVICE}")
-        self.dbusservice.add_path("/DeviceInstance", DEVICE_INSTANCE)
-        self.dbusservice.add_path("/ProductId", 0xFFFF)
-        self.dbusservice.add_path("/ProductName", "Virtual Inverted Battery")
-        self.dbusservice.add_path("/Connected", 1)
-        self.dbusservice.add_path("/CustomName", "Inverted Battery")
+    def _discover_bus_item_paths(self, root_path: str = "/") -> Set[str]:
+        discovered: Set[str] = set()
+        visited: Set[str] = set()
 
-        for path, transform in CORE_DATA_PATHS.items():
-            self._enable_path(path, transform)
+        def walk(path: str):
+            if path in visited:
+                return
+            visited.add(path)
 
-        for path, transform in OPTIONAL_DATA_PATHS.items():
-            if self._probe_path(path) is not None:
-                self._enable_path(path, transform)
+            try:
+                proxy = self.bus.get_object(SOURCE_SERVICE, path)
+            except dbus.DBusException:
+                return
 
-        for pattern in DYNAMIC_PATH_PATTERNS:
-            for index in range(1, 33):
-                path = pattern.format(index=index)
-                if self._probe_path(path) is not None:
-                    self._enable_path(path, identity)
+            try:
+                iface = dbus.Interface(proxy, "com.victronenergy.BusItem")
+                iface.GetValue()
+                if path not in OWN_METADATA_PATHS:
+                    discovered.add(path)
+            except dbus.DBusException:
+                pass
+
+            try:
+                introspect = dbus.Interface(proxy, "org.freedesktop.DBus.Introspectable")
+                xml_data = introspect.Introspect()
+                node = ET.fromstring(xml_data)
+                for child in node.findall("node"):
+                    name = child.attrib.get("name")
+                    if not name:
+                        continue
+                    if path == "/":
+                        child_path = f"/{name}"
+                    else:
+                        child_path = f"{path}/{name}"
+                    walk(child_path)
+            except (dbus.DBusException, ET.ParseError):
+                return
+
+        walk(root_path)
+        return discovered
+
+    def _discover_and_enable_paths(self):
+        discovered_paths = self._discover_bus_item_paths()
+        enabled_count_before = len(self.active_paths)
+
+        for path in sorted(discovered_paths):
+            if path in OWN_METADATA_PATHS:
+                continue
+            value = self._probe_path(path)
+            if value is None:
+                continue
+            self._enable_path(path, value)
+            self.source_values[path] = value
+
+        enabled_count_after = len(self.active_paths)
+        if enabled_count_after != enabled_count_before:
+            logger.info(
+                "Discovered %d additional mirrored paths.",
+                enabled_count_after - enabled_count_before,
+            )
+
+    def refresh_discovery(self):
+        self._discover_and_enable_paths()
+        self._prime_missing_source_items()
+        self._schedule_flush_updates()
+        return True
 
     def _setup_signal_receiver(self):
         self.bus.add_signal_receiver(
@@ -248,19 +210,30 @@ class VirtualInvertedBattery:
             bus_name=SOURCE_SERVICE,
         )
 
-    def _prime_source_paths(self):
+    def _prime_missing_source_items(self):
         for path in self.active_paths:
+            if path in self.source_items:
+                continue
             try:
                 proxy = self.bus.get_object(SOURCE_SERVICE, path)
                 self.source_items[path] = dbus.Interface(proxy, "com.victronenergy.BusItem")
             except dbus.DBusException as exc:
                 logger.warning("DBus path %s is not available: %s", path, exc)
 
+    def _prime_source_paths(self):
+        self._prime_missing_source_items()
         self.poll_source()
 
     def handle_dbus_change(self, changes, path):
         value = changes.get("Value")
-        if value is not None and path in self.active_paths:
+        if value is None:
+            return
+
+        if path not in self.active_paths and path not in OWN_METADATA_PATHS:
+            self._enable_path(path, value)
+            self._prime_missing_source_items()
+
+        if path in self.active_paths:
             self.source_values[path] = value
             self._schedule_flush_updates()
 
