@@ -39,7 +39,6 @@ logger = logging.getLogger("dbus_deye_battery")
 CAN_FRAME_FORMAT = "=IB3x8s"
 CAN_FRAME_SIZE = struct.calcsize(CAN_FRAME_FORMAT)
 RUNNING_STATE = 9
-IDLE_STATE = 0
 CHARGING_STATE = 1
 DISCHARGING_STATE = 2
 
@@ -100,7 +99,7 @@ class DeyeCanBattery:
     def _setup_paths(self):
         add = self.dbusservice.add_path
         add("/Mgmt/ProcessName", __file__)
-        add("/Mgmt/ProcessVersion", "1.2")
+        add("/Mgmt/ProcessVersion", "1.3")
         add("/Mgmt/Connection", f"SocketCAN {CAN_INTERFACE}")
         add("/DeviceInstance", DEVICE_INSTANCE)
         add("/ProductId", 0xFFFF)
@@ -109,7 +108,6 @@ class DeyeCanBattery:
         add("/CustomName", CUSTOM_NAME)
 
         default_paths = {
-            "/State": RUNNING_STATE,
             "/Mode": 1,
             "/Soc": 0.0,
             "/Soh": 100.0,
@@ -131,7 +129,6 @@ class DeyeCanBattery:
             "/Io/AllowToCharge": 1,
             "/Io/AllowToDischarge": 1,
             "/Io/AllowToBalance": 0,
-            "/SystemSwitch": 1,
             "/System/MaxCellVoltage": 0.0,
             "/System/MinCellVoltage": 0.0,
             "/System/MaxCellTemperature": 0.0,
@@ -189,8 +186,6 @@ class DeyeCanBattery:
         connected = int((time.monotonic() - self.last_frame_monotonic) <= ONLINE_TIMEOUT_SECONDS)
         if self.dbusservice["/Connected"] != connected:
             self.dbusservice["/Connected"] = connected
-        if connected and self.dbusservice["/SystemSwitch"] != 1:
-            self.dbusservice["/SystemSwitch"] = 1
         return True
 
     def _set(self, path: str, value: Any):
@@ -200,18 +195,12 @@ class DeyeCanBattery:
     def _update_capacity_from_soc(self):
         installed_capacity = float(self.values.get("/InstalledCapacity", BATTERY_CAPACITY_AH))
         soc = float(self.values.get("/Soc", 0.0))
-        available_capacity = round(installed_capacity * max(0.0, min(soc, 100.0)) / 100.0, 1)
-        self._set("/Capacity", available_capacity)
-
-    def _update_state_from_current(self):
-        current = float(self.values.get("/Dc/0/Current", 0.0))
-        if current > 0.5:
-            state = CHARGING_STATE
-        elif current < -0.5:
-            state = DISCHARGING_STATE
+        if soc <= 1.0:
+            soc_pct = soc * 100.0
         else:
-            state = RUNNING_STATE
-        self._set("/State", state)
+            soc_pct = soc
+        available_capacity = round(installed_capacity * max(0.0, min(soc_pct, 100.0)) / 100.0, 1)
+        self._set("/Capacity", available_capacity)
 
     @staticmethod
     def _u16le(data: bytes, offset: int, scale: float = 1.0) -> float:
@@ -229,8 +218,12 @@ class DeyeCanBattery:
             self._set("/Info/BatteryLowVoltage", self._u16le(data, 6, 0.1))
 
         elif can_id == 0x355 and len(data) >= 4:
-            self._set("/Soc", self._u16le(data, 0, 1.0))
-            self._set("/Soh", self._u16le(data, 2, 1.0))
+            soc_raw = self._u16le(data, 0, 1.0)
+            soh_raw = self._u16le(data, 2, 1.0)
+            soc_value = soc_raw / 100.0 if soc_raw > 100 else soc_raw
+            soh_value = soh_raw / 100.0 if soh_raw > 100 else soh_raw
+            self._set("/Soc", soc_value)
+            self._set("/Soh", soh_value)
             self._update_capacity_from_soc()
 
         elif can_id == 0x356 and len(data) >= 6:
@@ -241,7 +234,6 @@ class DeyeCanBattery:
             self._set("/Dc/0/Current", current)
             self._set("/Dc/0/Power", round(voltage * current, 1))
             self._set("/Dc/0/Temperature", temperature)
-            self._update_state_from_current()
 
         elif can_id == 0x359 and len(data) >= 8:
             raw_alarm_flags = int.from_bytes(data[:8], "little", signed=False)
@@ -254,7 +246,6 @@ class DeyeCanBattery:
             allow_discharge = 1 if data[0] & 0x40 else 0
             self._set("/Io/AllowToCharge", allow_charge)
             self._set("/Io/AllowToDischarge", allow_discharge)
-            self._set("/SystemSwitch", 1 if (allow_charge or allow_discharge) else 0)
             self._set("/Info/ChargeRequest", 0 if allow_discharge else 1)
 
         elif can_id == 0x361 and len(data) >= 8:
@@ -282,8 +273,6 @@ class DeyeCanBattery:
             self._set("/System/NrOfModulesOffline", modules_offline)
             self._set("/System/NrOfModulesBlockingCharge", modules_blocking_charge)
             self._set("/System/NrOfModulesBlockingDischarge", modules_blocking_discharge)
-            if modules_online > 0:
-                self._set("/SystemSwitch", 1)
 
         elif can_id == 0x371 and len(data) >= 4:
             self._set("/Info/MaxChargeCurrent", self._u16le(data, 0, 0.1))

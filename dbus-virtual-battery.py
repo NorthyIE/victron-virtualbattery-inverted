@@ -43,6 +43,11 @@ OWN_METADATA_PATHS = {
     "/CustomName",
 }
 
+IGNORED_SOURCE_PATHS = {
+    "/State",
+    "/SystemSwitch",
+}
+
 
 def identity(value: Any) -> Any:
     return value
@@ -104,7 +109,7 @@ class VirtualInvertedBattery:
 
     def _setup_service_paths(self):
         self.dbusservice.add_path("/Mgmt/ProcessName", __file__)
-        self.dbusservice.add_path("/Mgmt/ProcessVersion", "3.0")
+        self.dbusservice.add_path("/Mgmt/ProcessVersion", "3.1")
         self.dbusservice.add_path("/Mgmt/Connection", f"Virtual Battery via {SOURCE_SERVICE}")
         self.dbusservice.add_path("/DeviceInstance", DEVICE_INSTANCE)
         self.dbusservice.add_path("/ProductId", 0xFFFF)
@@ -126,7 +131,7 @@ class VirtualInvertedBattery:
             return None
 
     def _enable_path(self, path: str, default_value: Any):
-        if path in self.active_paths or path in OWN_METADATA_PATHS:
+        if path in self.active_paths or path in OWN_METADATA_PATHS or path in IGNORED_SOURCE_PATHS:
             return
 
         transform = self._transform_for_path(path)
@@ -151,7 +156,7 @@ class VirtualInvertedBattery:
             try:
                 iface = dbus.Interface(proxy, "com.victronenergy.BusItem")
                 iface.GetValue()
-                if path not in OWN_METADATA_PATHS:
+                if path not in OWN_METADATA_PATHS and path not in IGNORED_SOURCE_PATHS:
                     discovered.add(path)
             except dbus.DBusException:
                 pass
@@ -180,8 +185,6 @@ class VirtualInvertedBattery:
         enabled_count_before = len(self.active_paths)
 
         for path in sorted(discovered_paths):
-            if path in OWN_METADATA_PATHS:
-                continue
             value = self._probe_path(path)
             if value is None:
                 continue
@@ -226,7 +229,7 @@ class VirtualInvertedBattery:
 
     def handle_dbus_change(self, changes, path):
         value = changes.get("Value")
-        if value is None:
+        if value is None or path in IGNORED_SOURCE_PATHS:
             return
 
         if path not in self.active_paths and path not in OWN_METADATA_PATHS:
