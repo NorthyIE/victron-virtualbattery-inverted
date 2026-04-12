@@ -97,7 +97,7 @@ class DeyeCanBattery:
     def _setup_paths(self):
         add = self.dbusservice.add_path
         add("/Mgmt/ProcessName", __file__)
-        add("/Mgmt/ProcessVersion", "1.4")
+        add("/Mgmt/ProcessVersion", "1.5")
         add("/Mgmt/Connection", f"SocketCAN {CAN_INTERFACE}")
         add("/DeviceInstance", DEVICE_INSTANCE)
         add("/ProductId", 0xFFFF)
@@ -106,7 +106,6 @@ class DeyeCanBattery:
         add("/CustomName", CUSTOM_NAME)
 
         default_paths = {
-            "/Mode": 1,
             "/Soc": 0.0,
             "/Soh": 100.0,
             "/Capacity": BATTERY_CAPACITY_AH,
@@ -259,8 +258,7 @@ class DeyeCanBattery:
             self._set("/System/MinCellVoltage", min_cell)
             self._set("/System/MaxCellTemperature", max_temp)
             self._set("/System/MinCellTemperature", min_temp)
-            delta_mv = (max_cell - min_cell) * 1000.0
-            self._set("/Alarms/CellImbalance", 1 if delta_mv >= 30.0 else 0)
+            self._set("/Alarms/CellImbalance", 0)
 
         elif can_id == 0x364 and len(data) >= 5:
             modules_online = int(data[0])
