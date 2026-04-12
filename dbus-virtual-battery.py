@@ -29,7 +29,6 @@ logger = logging.getLogger("dbus_virtual_battery")
 
 INVERTED_PATHS = {
     "/Dc/0/Current",
-    "/Dc/0/Power",
 }
 
 OWN_METADATA_PATHS = {
@@ -109,7 +108,7 @@ class VirtualInvertedBattery:
 
     def _setup_service_paths(self):
         self.dbusservice.add_path("/Mgmt/ProcessName", __file__)
-        self.dbusservice.add_path("/Mgmt/ProcessVersion", "3.1")
+        self.dbusservice.add_path("/Mgmt/ProcessVersion", "3.2")
         self.dbusservice.add_path("/Mgmt/Connection", f"Virtual Battery via {SOURCE_SERVICE}")
         self.dbusservice.add_path("/DeviceInstance", DEVICE_INSTANCE)
         self.dbusservice.add_path("/ProductId", 0xFFFF)
@@ -254,6 +253,10 @@ class VirtualInvertedBattery:
 
             try:
                 new_value = transform(value)
+                if path == "/Dc/0/Power":
+                    voltage = float(self.dbusservice.get("/Dc/0/Voltage", 0) or 0)
+                    current = float(self.dbusservice.get("/Dc/0/Current", 0) or 0)
+                    new_value = round(voltage * current, 1)
                 if self.dbusservice[path] != new_value:
                     self.dbusservice[path] = new_value
             except (TypeError, ValueError, dbus.DBusException) as exc:

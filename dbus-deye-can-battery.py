@@ -33,14 +33,12 @@ NR_OF_CELLS_PER_BATTERY = int(os.environ.get("NR_OF_CELLS_PER_BATTERY", "16"))
 BATTERY_CAPACITY_AH = float(os.environ.get("BATTERY_CAPACITY_AH", "314"))
 CURRENT_SIGN_CORRECTION = float(os.environ.get("CURRENT_SIGN_CORRECTION", "-1"))
 PUBLISH_RAW_STRINGS = os.environ.get("PUBLISH_RAW_STRINGS", "1") == "1"
+MODULE_LABEL = os.environ.get("MODULE_LABEL", "Module 1")
 
 logger = logging.getLogger("dbus_deye_battery")
 
 CAN_FRAME_FORMAT = "=IB3x8s"
 CAN_FRAME_SIZE = struct.calcsize(CAN_FRAME_FORMAT)
-RUNNING_STATE = 9
-CHARGING_STATE = 1
-DISCHARGING_STATE = 2
 
 
 class DeyeCanBattery:
@@ -99,7 +97,7 @@ class DeyeCanBattery:
     def _setup_paths(self):
         add = self.dbusservice.add_path
         add("/Mgmt/ProcessName", __file__)
-        add("/Mgmt/ProcessVersion", "1.3")
+        add("/Mgmt/ProcessVersion", "1.4")
         add("/Mgmt/Connection", f"SocketCAN {CAN_INTERFACE}")
         add("/DeviceInstance", DEVICE_INSTANCE)
         add("/ProductId", 0xFFFF)
@@ -133,8 +131,10 @@ class DeyeCanBattery:
             "/System/MinCellVoltage": 0.0,
             "/System/MaxCellTemperature": 0.0,
             "/System/MinCellTemperature": 0.0,
-            "/System/MaxVoltageCellId": "",
-            "/System/MinVoltageCellId": "",
+            "/System/MaxVoltageCellId": MODULE_LABEL,
+            "/System/MinVoltageCellId": MODULE_LABEL,
+            "/System/MaxTemperatureCellId": MODULE_LABEL,
+            "/System/MinTemperatureCellId": MODULE_LABEL,
             "/System/NrOfBatteries": 1,
             "/System/NrOfModulesOnline": 0,
             "/System/NrOfModulesOffline": 0,
