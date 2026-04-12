@@ -1,24 +1,40 @@
-# Victron Virtual Battery Inverted
+# Deye Battery CAN für Victron
 
 [English version](README.md)
 
-Ich habe das Projekt ursprünglich für Victron Venus OS gebaut, weil ein BMS in meinem Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat. In meinem Fall war es ein Deye-BMS. Dadurch waren die Anzeigen im GX und im VRM ziemlich irreführend.
+Das Projekt begann ursprünglich als kleiner Workaround für Victron Venus OS, weil ein Deye-BMS in meinem Setup den Batteriestrom mit dem falschen Vorzeichen gemeldet hat.
 
-Das Projekt besteht inzwischen aus zwei zusammengehörigen Teilen:
+Inzwischen ist daraus eine deutlich breitere **Deye-Batterie-CAN-Integration für Victron** geworden, mit einer optionalen virtuellen Batterieschicht für Fälle, in denen die Stromrichtung zusätzlich korrigiert werden muss.
 
-1. **Ein Deye-CAN-Batterie-Quelltreiber**, der Deye-Batteriedaten von SocketCAN liest und als Victron-Batteriedienst auf dem DBus veröffentlicht.
-2. **Eine virtuelle Batterie-Spiegelung**, die einen echten Batteriedienst auf dem DBus spiegelt und Strom sowie Leistung invertiert, während fast alle anderen verfügbaren Batteriepfade automatisch übernommen werden.
+## Was dieses Projekt heute ist
 
-Du kannst beide Teile einzeln nutzen oder miteinander kombinieren.
+Das Repository enthält aktuell zwei zusammengehörige Komponenten:
+
+1. **Einen Deye-CAN-Batterie-Quelltreiber**, der Deye-Batteriedaten von SocketCAN liest und als Victron-Batteriedienst auf dem DBus veröffentlicht.
+2. **Eine virtuelle Batterie-Spiegelung**, die einen vorhandenen DBus-Batteriedienst spiegelt, das Stromvorzeichen invertiert und fast alle anderen Batteriepfade automatisch übernimmt.
+
+Beide Teile können einzeln oder gemeinsam genutzt werden.
 
 ![GX-Screenshot mit Originalbatterie und korrigierter virtueller Batterie](screenshots/settings-system-batteries.png)
 
-## Was dieses Repo inzwischen kann
+## Empfohlene Sicht auf das Projekt
+
+Am besten versteht man dieses Repo heute als:
+
+- **Deye Battery CAN implementation on Victron**
+
+Und zusätzlich als:
+
+- **optionale virtuelle Korrekturschicht**
+
+Das beschreibt den heutigen Funktionsumfang deutlich besser als der alte Projektname.
+
+## Aktueller Stand
 
 ### Option A: Deye-Batterie direkt von CAN veröffentlichen
 Der Deye-Quelltreiber lauscht auf SocketCAN und veröffentlicht einen Victron-Batteriedienst auf dem DBus.
 
-Aktuell werden die Summary-Frames dekodiert, die in meinen Deye-Logs sichtbar waren, unter anderem:
+Aktuell werden die Deye-Summary-Frames dekodiert, die in meinen Logs sichtbar waren, unter anderem:
 
 - Batteriespannung
 - Batteriestrom
@@ -47,20 +63,18 @@ Die im GX angezeigte verfügbare Kapazität wird berechnet aus:
 - aktuellem SoC
 
 ### Option B: Vorhandenen Batteriedienst spiegeln und Vorzeichen korrigieren
-Das ist der ursprüngliche Anwendungsfall.
+Das ist weiterhin nützlich, wenn die Batterie bereits auf dem DBus vorhanden ist, aber die Stromrichtung nicht stimmt.
 
-Die virtuelle Batterie spiegelt einen echten Batteriedienst und:
+Die virtuelle Batterie:
 
 - übernimmt die Spannung
 - übernimmt den SoC
 - invertiert den Strom
-- invertiert die Leistung
-- übernimmt fast alle anderen Quellpfade automatisch über DBus-Erkennung
-
-Das ist sinnvoll, wenn deine Batterie bereits auf dem DBus sichtbar ist, aber die Stromrichtung falsch ist.
+- berechnet die Leistung aus der gespiegelten Spannung und dem gespiegelten Strom neu
+- übernimmt fast alle anderen Batteriepfade automatisch über DBus-Erkennung
 
 ### Option C: Beides zusammen nutzen
-Das ist die beste Wahl, wenn:
+Das ist die empfohlene Variante, wenn:
 
 - deine Deye-Daten noch nicht auf dem DBus vorhanden sind und
 - das Stromvorzeichen für Victron zusätzlich korrigiert werden muss.
@@ -68,17 +82,27 @@ Das ist die beste Wahl, wenn:
 In diesem Setup:
 
 - veröffentlicht `dbus-deye-can-battery.py` den Dienst `com.victronenergy.battery.deye_vecan0`
-- spiegelt `dbus-virtual-battery.py` diesen Dienst und invertiert das Vorzeichen nach `com.victronenergy.battery.inverted_vecan0`
-
-Danach wählst du im GX einfach die **Inverted Battery** aus.
+- spiegelt `dbus-virtual-battery.py` diesen Dienst nach `com.victronenergy.battery.inverted_vecan0`
 
 ## Welche Variante solltest du nutzen?
 
 Nutze **nur den Deye-Quelltreiber**, wenn du einen nativen Deye-Batteriedienst auf dem DBus willst und das Vorzeichen in deiner Umgebung bereits stimmt.
 
-Nutze **nur die virtuelle Batterie**, wenn deine echte Batterie schon in `dbus-spy` erscheint und du nur das Vorzeichen korrigieren musst.
+Nutze **nur die virtuelle Batterie**, wenn deine echte Batterie schon in `dbus-spy` erscheint und du nur das Vorzeichen korrigieren möchtest.
 
-Nutze **beides zusammen**, wenn du eine Deye-Batterie direkt von CAN integrieren willst und zusätzlich die Stromrichtung für GX/VRM korrigieren musst.
+Nutze **beides zusammen**, wenn du eine Deye-Batterie direkt von CAN integrieren willst und zusätzlich eine Vorzeichenkorrektur für GX/VRM brauchst.
+
+## Hinweis zur Benennung des Projekts
+
+Der Repository-Name enthält noch den älteren Begriff `virtualbattery-inverted`, weil das ursprünglich der Projektfokus war.
+
+Inzwischen ist der Funktionsumfang deutlich darüber hinausgewachsen. Langfristig wären passendere Namen zum Beispiel:
+
+- `victron-deye-can-battery`
+- `deye-battery-victron`
+- `victron-deye-bms`
+
+Bis auf Weiteres bleibt dieses Repository das aktive Zuhause des Projekts, aber die Dokumentation beschreibt jetzt den breiteren Funktionsumfang.
 
 ## Den richtigen Batteriedienst prüfen
 Bevor du installierst, verbinde dich per SSH mit dem Cerbo GX und starte:
@@ -118,7 +142,6 @@ chmod +x /data/dbus-virtual-battery/install.sh
 ### 3. Modus auswählen
 
 #### Nur Deye-CAN-Quelle
-Damit wird ein Deye-Batteriedienst direkt aus CAN erzeugt, ohne den invertierten Spiegel anzulegen.
 
 ```sh
 INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=0 BATTERY_CAPACITY_AH=314 /data/dbus-virtual-battery/install.sh
@@ -135,7 +158,6 @@ CURRENT_SIGN_CORRECTION=-1
 ```
 
 #### Nur vorhandenen DBus-Batteriedienst spiegeln
-Das ist das ursprüngliche Verhalten.
 
 ```sh
 SOURCE_SERVICE=com.victronenergy.battery.socketcan_vecan0 /data/dbus-virtual-battery/install.sh
@@ -143,8 +165,7 @@ SOURCE_SERVICE=com.victronenergy.battery.socketcan_vecan0 /data/dbus-virtual-bat
 
 Falls dein vorhandener Batteriedienst anders heißt, passe `SOURCE_SERVICE` entsprechend an.
 
-#### Deye-CAN-Quelle plus invertierte virtuelle Batterie
-Damit werden beide Dienste installiert und die virtuelle Batterie liest aus dem Deye-Quelltreiber.
+#### Deye-CAN-Quelle plus virtuelle Korrekturschicht
 
 ```sh
 INSTALL_DEYE_SOURCE=1 \
@@ -153,8 +174,6 @@ BATTERY_CAPACITY_AH=314 \
 SOURCE_SERVICE=com.victronenergy.battery.deye_vecan0 \
 /data/dbus-virtual-battery/install.sh
 ```
-
-Das ist die empfohlene Variante, wenn du Deye-CAN-Daten dekodieren und gleichzeitig das Stromvorzeichen für GX/VRM korrigieren willst.
 
 ### 4. Reboot-fest machen
 Unter Venus OS wird `/service` beim Booten neu aufgebaut, deshalb muss das Installationsskript nach jedem Neustart und Firmware-Update erneut laufen. Füge dafür diesen Boot-Hook hinzu:
@@ -171,15 +190,15 @@ grep -qxF "INSTALL_DEYE_SOURCE=1 INSTALL_VIRTUAL_BATTERY=1 BATTERY_CAPACITY_AH=3
 chmod +x /data/rc.local
 ```
 
-Prüfe außerdem, dass unter `Settings -> General -> Modification checks -> Modifications enabled` die Modifikationen aktiviert sind, sonst deaktiviert Venus OS die `/data/rc.local`.
+Außerdem muss unter `Settings -> General -> Modification checks -> Modifications enabled` die Modifikationserlaubnis aktiv sein.
 
-## Was das Installationsskript jetzt macht
-Das Installationsskript kann inzwischen entweder einen oder beide dieser Dienste erzeugen:
+## Was das Installationsskript macht
+Das Installationsskript kann einen oder beide dieser Dienste anlegen:
 
 - `/service/dbus-deye-battery`
 - `/service/dbus-virtual-battery`
 
-Es erstellt die `run`-Dateien in `/data/conf/service/...` neu, verlinkt `/service/...` und startet die Dienste neu.
+Es erzeugt die `run`-Dateien in `/data/conf/service/...` neu, verlinkt `/service/...` und startet die Dienste neu.
 
 Die Logs liegen hier:
 
@@ -216,7 +235,7 @@ tail -f /data/log/dbus-virtual-battery/dbus-virtual-battery.log
 
 Falls die Werte noch nicht stimmen:
 
-1. Mit `dbus-spy` den echten Batteriedienstnamen noch einmal prüfen
+1. Mit `dbus-spy` den Batteriedienstnamen noch einmal prüfen
 2. Kontrollieren, dass der Deye-Quelltreiber als `com.victronenergy.battery.deye_vecan0` erscheint
 3. Kontrollieren, dass die virtuelle Batterie als `com.victronenergy.battery.inverted_vecan0` erscheint
 4. Falls das Stromvorzeichen noch falsch ist, `CURRENT_SIGN_CORRECTION` von `-1` auf `1` ändern
